@@ -1,0 +1,175 @@
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-javascript/ for more details
+#
+version: 2.1
+notify:
+  webhooks:
+    - url: https://pru.appsimples.com.br/hooks/FERrsEC5kqTui2mTA/r2vwGyfHP9hwwTRpyPnELNd4pN8B7HCZkuWzkKuAZFexJ42s
+jobs:
+  build:
+    docker:
+      - image: circleci/node:10.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Installing Dependencies
+          command: yarn install --frozen-lockfile
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Decode ENV
+          command: echo $ENV_DEVELOPMENT | base64 -di | tee .env.development >/dev/null
+      - run:
+          name: Build
+          command: yarn build
+      - run:
+          name: Run Tests
+          command: yarn test
+
+  release-development:
+    docker:
+      - image: circleci/node:10.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: NPM Login
+          command: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Installing Dependencies
+          command: yarn install --frozen-lockfile
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Deploy development
+          command: yarn deploy:development
+
+  release-staging:
+    docker:
+      - image: circleci/node:10.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: NPM Login
+          command: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+      - run:
+          name: Decode ENV
+          command: echo $ENV_STAGING | base64 -di | tee .env.staging >/dev/null
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Installing Dependencies
+          command: yarn install --frozen-lockfile
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Use Production AWS Keys
+          command: |
+            echo 'export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID_staging' >> $BASH_ENV
+            echo 'export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY_staging' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Deploy staging
+          command: yarn deploy:staging
+      - run:
+          name: Tag Success
+          command: |
+            git tag staging-${CIRCLE_TAG}
+            git push origin staging-${CIRCLE_TAG}
+
+  release-production:
+    docker:
+      - image: circleci/node:10.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Decode ENV
+          command: echo $ENV_PRODUCTION | base64 -di | tee .env.production >/dev/null
+      - restore_cache: # special step to restore the dependency cache
+          name: Restore Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Installing Dependencies
+          command: yarn install
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: Use Production AWS Keys
+          command: |
+            echo 'export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID_prod' >> $BASH_ENV
+            echo 'export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY_prod' >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: Deploy Production
+          command: yarn deploy:production
+      - run:
+          name: Tag Success
+          command: |
+            git tag prod-${CIRCLE_TAG}
+            git push origin prod-${CIRCLE_TAG}
+
+workflows:
+  version: 2.1
+#  build-trunk:
+#    jobs:
+#      - build:
+#          filters:
+#            branches:
+#              only: master
+  build-and-deploy-staging:
+    jobs:
+      - release-staging:
+          context: org-global
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v(?:(\d+)\.)(?:(\d+)\.)(\*|\d+)$/
+  build-and-deploy-production:
+    jobs:
+      - manual_approval:
+          type: approval
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v(?:(\d+)\.)(?:(\d+)\.)(\*|\d+)$/
+      - release-production:
+          context: org-global
+          requires:
+            - manual_approval
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v(?:(\d+)\.)(?:(\d+)\.)(\*|\d+)$/
+  build-and-deploy-development:
+    jobs:
+      - release-development:
+          context: org-global
+          filters:
+            branches:
+              only: dev

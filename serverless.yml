@@ -1,0 +1,121 @@
+service:
+  name: grout-backend
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-webpack
+  - dynamodb-offline-streams
+  - serverless-offline
+  - serverless-layers
+  - serverless-domain-manager
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  stackTags:
+    PROJECT: together
+  tags:
+    PROJECT: together
+  deploymentPrefix: grout-serverless-api
+  deploymentBucket:
+    name: ${self:custom.config.deploymentBucketName}
+    tags: # Tags that will be added to each of the deployment resources
+      PROJECT: together
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - dynamodb:*
+        - ses:*
+        - sts:*
+        - s3:*
+        - es:*
+        - elastictranscoder:*
+      Resource: "*"
+
+functions:
+  authorizerFunction:
+    handler: src/_common/authorization/lambdaHandler.handler
+  api:
+    handler: src/server.graphql
+    events:
+     - http:
+         method: any
+         path: graphql
+         authorizer: ${self:custom.authorizer}
+         cors: true
+  docsUI:
+    handler: src/server.graphiql
+    events:
+      - http:
+          method: any
+          path: docs
+          cors: true
+      - http:
+          method: any
+          path: api
+          cors: true
+#  imageTranscoder:
+#    handler: src/_common/services/mediaTranscoder.handler
+#    layers:
+#      - ${env:LAYER_IMAGE_MAGICK_ARN}
+#    events:
+#      - s3:
+#          existing: true
+#          bucket: ${env:DEPLOYMENT_BUCKET_NAME}
+#          event: s3:ObjectCreated:*
+#          rules:
+#            - prefix: ${file(src/constants.js):Constants.StorageBucketDirectory}
+
+  dynamoStream:
+    handler: src/stream.handler
+    layers:
+      - ${env:LAYER_IMAGE_MAGICK_ARN}
+    events:
+      - stream:
+          enabled: true
+          type: dynamodb
+          arn: ${env:TABLE_MAIN_STREAM_ARN}
+          tableName: GroutMainTable
+
+#resources: ${file(./src/_common/aws/resources/resources.dev.yml)}
+
+custom:
+  config:
+    deploymentBucketName: ${env:DEPLOYMENT_BUCKET_NAME}
+    storageBucketName: ${env:STORAGE_BUCKET_NAME}
+    storageBucketDirectory: ${file(src/constants.js):Constants.StorageBucketDirectory}
+    storageBucketUserDirectory: ${file(src/constants.js):Constants.StorageBucketUserDirectory}
+    storageBucketGroupDirectory: ${file(src/constants.js):Constants.StorageBucketGroupsDirectory}
+    storageBucketCampaignDirectory: ${file(src/constants.js):Constants.StorageBucketCampaignDirectory}
+    storageBucketPostDirectory: ${file(src/constants.js):Constants.StorageBucketPostsDirectory}
+    storageBucketVideosDirectory: ${file(src/constants.js):Constants.StorageBucketVideosDirectory}
+    storageBucketTranscodedMediaDirectory: ${file(src/constants.js):Constants.StorageBucketTranscodedMediaDirectory}
+  serverless-offline:
+    disableCookieValidation: true
+    port: 3003
+  customDomain:
+    domainName: ${env:CUSTOM_DOMAIN_NAME}
+    certificateName:  ${env:CUSTOM_DOMAIN_CERTIFICATE_NAME}
+    createRoute53Record: true
+    enabled: ${env:CUSTOM_DOMAIN_ENABLED}
+    endpointType: 'regional'
+  serverless-layers:
+    packageManager: yarn
+    compileDir: .serverless
+    packagePath: package.json
+    compatibleRuntimes: ['nodejs']
+  serverless-offline-dynamodb-streams:
+    apiVersion: '2013-12-02'
+    endpoint: http://0.0.0.0:8000
+    region: us-east-1
+    accessKeyId: root
+    secretAccessKey: root
+    skipCacheInvalidation: false
+    readInterval: 500
+  authorizer:
+    name: authorizerFunction
+    resultTtlInSeconds: 2
+    identitySource: method.request.header.Authorization
+    type: request
+
+

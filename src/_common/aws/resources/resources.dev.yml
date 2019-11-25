@@ -1,0 +1,74 @@
+Resources:
+  TogetherUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                - 'Fn::Join':
+                    - ":"
+                    - - "arn:aws:iam:"
+                      - Ref: "AWS::AccountId"
+                      - "root"
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AllowAccessToBucket"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "s3:PutObject"
+                Resource:
+                  - 'Fn::Join':
+                        - ":"
+                        - - "arn:aws:s3::"
+                          - 'Fn::Join':
+                              - "/"
+                              - - ${self:custom.config.storageBucketName}
+                                - ${self:custom.config.storageBucketDirectory}
+                                - ${self:custom.config.storageBucketCampaignDirectory}
+                                - "*"
+                  - 'Fn::Join':
+                      - ":"
+                      - - "arn:aws:s3::"
+                        - 'Fn::Join':
+                            - "/"
+                            - - ${self:custom.config.storageBucketName}
+                              - ${self:custom.config.storageBucketDirectory}
+                              - ${self:custom.config.storageBucketUserDirectory}
+                              - "*"
+                  - 'Fn::Join':
+                      - ":"
+                      - - "arn:aws:s3::"
+                        - 'Fn::Join':
+                            - "/"
+                            - - ${self:custom.config.storageBucketName}
+                              - ${self:custom.config.storageBucketDirectory}
+                              - ${self:custom.config.storageBucketGroupDirectory}
+                              - "*"
+                  - 'Fn::Join':
+                      - ":"
+                      - - "arn:aws:s3::"
+                        - 'Fn::Join':
+                            - "/"
+                            - - ${self:custom.config.storageBucketName}
+                              - ${self:custom.config.storageBucketDirectory}
+                              - ${self:custom.config.storageBucketPostDirectory}
+                              - "*"
+                  - 'Fn::Join':
+                      - ":"
+                      - - "arn:aws:s3::"
+                        - 'Fn::Join':
+                            - "/"
+                            - - ${self:custom.config.storageBucketName}
+                              - ${self:custom.config.storageBucketDirectory}
+                              - ${self:custom.config.storageBucketVideosDirectory}
+                              - "*"
+
+      RoleName: ${env:USER_ROLE_NAME}

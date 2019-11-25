@@ -1,0 +1,8 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Authed Queries \`me\` should return logged user successfully 1`] = `
+Object {
+  "id": "ned",
+  "name": "Ned Stark",
+}
+`;

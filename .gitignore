@@ -1,0 +1,28 @@
+# package directories
+node_modules
+jspm_packages
+
+# Serverless directories
+.serverless
+
+# Webpack directories
+.webpack
+
+# Local Dynamodb
+.dynamodb
+
+schema.graphql
+
+# Dot Envs
+.env.development
+.env.staging
+.env.production
+
+.idea
+.env.staging
+.env.production
+
+# Logs
+yarn-error.log
+
+coverage

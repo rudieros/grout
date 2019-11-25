@@ -1,0 +1,213 @@
+<!--
+ *  Copyright (c) 2019 GraphQL Contributors
+ *  All rights reserved.
+ *
+ *  This source code is licensed under the license found in the
+ *  LICENSE file in the root directory of this source tree.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .card-container {
+            z-index: 20;
+            box-shadow: 2px 2px 5px 6px rgba(0,0,0,0.1);
+            width: calc(100% - 64px);
+            background-color: white;
+            padding: 32px;
+            margin: 32px auto;
+        }
+        body {
+            height: 100%;
+            margin: 0;
+            width: 100%;
+            overflow: scroll;
+        }
+
+        #graphiql {
+            height: 100vh;
+        }
+    </style>
+
+</head>
+<body>
+<div>
+    <div class="card-container">
+        Olá
+    </div>
+</div>
+<script>
+  const copyTokenToClipboard = () => {
+      navigator.clipboard.writeText(localStorage.getItem('os-token'))
+  }
+  const logout = () => {
+    localStorage.removeItem('os-token')
+    updateLoggedUserUI()
+  }
+  const updateLoggedUserUI = function(token = localStorage.getItem('os-token')) {
+    document.getElementById('loggedUser').style.display = token ? 'block' : 'none'
+    if (!token) {
+      return
+    }
+    const tokenData = JSON.parse(atob(token.split('.')[1]))
+
+    document.getElementById('loggedUserInfo').textContent = `${tokenData.userId}, ${tokenData.userId}`
+  }
+  const updateLoggedUser = function(response) {
+    if (response && response.extensions && response.extensions.authorization) {
+      localStorage.setItem('os-token', response.extensions.authorization.token)
+    }
+    updateLoggedUserUI(response && response.extensions && response.extensions.authorization && response.extensions.authorization.token)
+  }
+  const onClickSignIn = function(event, username, password) {
+    event.preventDefault()
+    const input = {
+      query: `mutation SignIn($input: SignInInput!){
+          signIn(signInInput: $input) {
+            message
+          }
+        }`,
+      variables: {
+        'input': {
+          'authId': username,
+          'password': password,
+        },
+      },
+    }
+    const pathComponents = window.location.pathname.split('/')
+    let path = '/graphql'
+    if (pathComponents.length === 3) {
+        path = '/' + pathComponents[1] + path
+    }
+    fetch(path, {
+      method: 'post',
+      body: JSON.stringify(input),
+      headers: {
+        'Accept-Content': 'application/json',
+        'Authorization': 'public_token',
+      },
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (data.errors && data.errors.length) {
+          alert(`Error signing in: ${data.errors[0]}`)
+        }
+        updateLoggedUser(data)
+      })
+      .catch((e) => alert(`Error signing in: ${e}`))
+    return false
+  }
+  updateLoggedUserUI()
+  /**
+   * This GraphiQL example illustrates how to use some of GraphiQL's props
+   * in order to enable reading and updating the URL parameters, making
+   * link sharing of queries a little bit easier.
+   *
+   * This is only one example of this kind of feature, GraphiQL exposes
+   * various React params to enable interesting integrations.
+   */
+    // Parse the search string to get url parameters.
+  var search = window.location.search
+  var parameters = {}
+  search.substr(1).split('&').forEach(function(entry) {
+    var eq = entry.indexOf('=')
+    if (eq >= 0) {
+      parameters[decodeURIComponent(entry.slice(0, eq))] =
+        decodeURIComponent(entry.slice(eq + 1))
+    }
+  })
+  // if variables was provided, try to format it.
+  if (parameters.variables) {
+    try {
+      parameters.variables =
+        JSON.stringify(JSON.parse(parameters.variables), null, 2)
+    } catch (e) {
+      // Do nothing, we want to display the invalid JSON as a string, rather
+      // than present an error.
+    }
+  }
+  // When the query and variables string is edited, update the URL bar so
+  // that it can be easily shared
+  function onEditQuery(newQuery) {
+    parameters.query = newQuery
+    updateURL()
+  }
+
+  function onEditVariables(newVariables) {
+    parameters.variables = newVariables
+    updateURL()
+  }
+
+  function onEditOperationName(newOperationName) {
+    parameters.operationName = newOperationName
+    updateURL()
+  }
+
+  function updateURL() {
+    var newSearch = '?' + Object.keys(parameters).filter(function(key) {
+      return Boolean(parameters[key])
+    }).map(function(key) {
+      return encodeURIComponent(key) + '=' +
+        encodeURIComponent(parameters[key])
+    }).join('&')
+    history.replaceState(null, null, newSearch)
+  }
+
+  // Defines a GraphQL fetcher using the fetch API. You're not required to
+  // use fetch, and could instead implement graphQLFetcher however you like,
+  // as long as it returns a Promise or Observable.
+  function graphQLFetcher(graphQLParams) {
+    // When working locally, the example expects a GraphQL server at the path /graphql.
+    // In a PR preview, it connects to the Star Wars API externally.
+    // Change this to point wherever you host your GraphQL server.
+    const isDev = !window.location.hostname.match(/(^|\.)netlify\.com$|(^|\.)graphql\.org$/)
+      const pathComponents = window.location.pathname.split('/')
+      let path = '/graphql'
+      if (pathComponents.length === 3) {
+          path = '/' + pathComponents[1] + path
+      }
+    return fetch(path, {
+      method: 'post',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('os-token') || 'public_token',
+      },
+      body: JSON.stringify(graphQLParams),
+      // credentials: 'include',
+    }).then(function(response) {
+      return response.text()
+    }).then(function(responseBody) {
+      try {
+        const jsonResponse = JSON.parse(responseBody)
+        updateLoggedUser(jsonResponse)
+        return jsonResponse
+      } catch (error) {
+        return responseBody
+      }
+    })
+  }
+
+  const render = () => {
+    // Render <GraphiQL /> into the body.
+    // See the README in the top level of this module to learn more about
+    // how you can customize GraphiQL by providing different values or
+    // additional child elements.
+    ReactDOM.render(
+      React.createElement(GraphiQL, {
+        key: Date.now(),
+        fetcher: graphQLFetcher,
+        query: parameters.query,
+        variables: parameters.variables,
+        operationName: parameters.operationName,
+        onEditQuery: onEditQuery,
+        onEditVariables: onEditVariables,
+        onEditOperationName: onEditOperationName,
+      }),
+      document.getElementById('graphiql'),
+    )
+  }
+  render()
+</script>
+</body>
+</html>
