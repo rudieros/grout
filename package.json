@@ -25,7 +25,7 @@
   "dependencies": {
     "@appsimples/dynamoose": "1.11.1",
     "@appsimples/os-heimdall": "^0.1.8",
-    "apollo-server-lambda": "^2.6.8",
+    "apollo-server-lambda": "^2.14.2",
     "aws-serverless-express": "^3.3.6",
     "class-validator": "^0.10.0",
     "dataloader": "^1.4.0",
